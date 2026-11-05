@@ -1,4 +1,4 @@
-// Command rig is a minimal template for a standalone rig application.
+// Command rig-meter is a standalone capture-level meter.
 package main
 
 import (
@@ -7,13 +7,17 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/isfopo/rig/internal/ui"
+	"github.com/isfopo/rig-meter/internal/ui"
 )
 
 func main() {
 	program := tea.NewProgram(ui.New(), tea.WithAltScreen())
-	if _, err := program.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, "rig:", err)
+	final, err := program.Run()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "rig-meter:", err)
 		os.Exit(1)
+	}
+	if m, ok := final.(ui.Model); ok {
+		m.Shutdown()
 	}
 }
