@@ -48,11 +48,11 @@ func New() Model {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		func() tea.Msg {
-			eng, err := audio.NewEngine()
+			eng, err := audio.NewEngineWithName("rig-meter")
 			if err != nil {
 				return streamStartedMsg{err: err}
 			}
-			opts := audio.Options{Channels: 2, SampleRate: 48000, LatencyMS: 10}
+			opts := audio.Options{Channels: 2, SampleRate: 48000, LatencyMS: 10, CaptureName: "rig-meter:in"}
 			peak, frames := m.peak, m.frames
 			deliver := func(samples []int16) {
 				p := audio.Peak(samples)
