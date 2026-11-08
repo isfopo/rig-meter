@@ -129,6 +129,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.peak != nil {
 			m.lastPeak = m.peak.Load()
 			m.lastFrames = m.frames.Load()
+
 			m.peak.Store(0)
 			m.frames.Store(0)
 		}
@@ -185,6 +186,7 @@ func (m Model) openCaptureCmd() tea.Cmd {
 		CaptureName: "rig-meter:in",
 	}
 	peak, frames := m.peak, m.frames
+
 	deliver := func(samples []int16) {
 		p := audio.Peak(samples)
 		for {
@@ -221,6 +223,13 @@ func deviceIDFor(inputs []audio.Device, sel int) []byte {
 	return inputs[sel-1].ID()
 }
 
+func (m Model) deviceName() string {
+	if m.inDrop.Current > 0 && m.inDrop.Current-1 < len(m.inputs) {
+		return m.inputs[m.inDrop.Current-1].Name
+	}
+	return "system default"
+}
+
 func (m Model) View() string {
 	if m.initErr != nil {
 		return fmt.Sprintf("rig-meter\n\naudio: %v\n\nq quit\n", m.initErr)
@@ -238,7 +247,8 @@ func (m Model) View() string {
 	var b string
 	b += "rig-meter\n\n"
 	b += fmt.Sprintf("input: %s\n", deviceName)
-	b += fmt.Sprintf("channels: %d\n\n", channels)
+	b += fmt.Sprintf("channels: %d\n", channels)
+	b += fmt.Sprintf("raw peak: %d\n\n", m.lastPeak)
 	b += bar + "\n\n"
 	b += m.status + "\n\n"
 	if m.inDrop.Focus {
