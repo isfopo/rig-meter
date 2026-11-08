@@ -1,3 +1,6 @@
 .serena/
 .tmp/
 rig
+
+# binary
+/rig-meter
