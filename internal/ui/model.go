@@ -196,7 +196,7 @@ func (m Model) openCaptureCmd() tea.Cmd {
 				break
 			}
 		}
-		frames.Add(int64(len(samples) / 2))
+		frames.Add(int64(len(samples) / int(opts.Channels)))
 	}
 	return func() tea.Msg {
 		if m.stream != nil {
