@@ -3,6 +3,7 @@ package ui
 
 import (
 	"fmt"
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -30,9 +31,11 @@ type Model struct {
 
 	peak   *atomic.Int64
 	frames *atomic.Int64
+	sumSq  *atomic.Int64
 
 	lastPeak   int64
 	lastFrames int64
+	lastRms    float64
 
 	status string
 
@@ -61,6 +64,7 @@ func New() Model {
 	return Model{
 		peak:     &atomic.Int64{},
 		frames:   &atomic.Int64{},
+		sumSq:    &atomic.Int64{},
 		seq:      new(atomic.Int64),
 		channels: 2,
 		status:   "starting audio...",
@@ -129,9 +133,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.peak != nil {
 			m.lastPeak = m.peak.Load()
 			m.lastFrames = m.frames.Load()
-
+			if m.lastFrames > 0 {
+				ss := m.sumSq.Load()
+				n := m.lastFrames * int64(m.channels)
+				if n > 0 {
+					rms := math.Sqrt(float64(ss) / float64(n))
+					m.lastRms = 20 * math.Log10(rms/32768.0)
+					if rms == 0 {
+						m.lastRms = -100
+					}
+				}
+			}
 			m.peak.Store(0)
 			m.frames.Store(0)
+			m.sumSq.Store(0)
 		}
 		return m, tickCmd()
 
@@ -185,7 +200,7 @@ func (m Model) openCaptureCmd() tea.Cmd {
 		LatencyMS:   10,
 		CaptureName: "rig-meter:in",
 	}
-	peak, frames := m.peak, m.frames
+	peak, frames, sumSq := m.peak, m.frames, m.sumSq
 
 	deliver := func(samples []int16) {
 		p := audio.Peak(samples)
@@ -198,6 +213,12 @@ func (m Model) openCaptureCmd() tea.Cmd {
 				break
 			}
 		}
+		var acc int64
+		for _, v := range samples {
+			iv := int64(v)
+			acc += iv * iv
+		}
+		sumSq.Add(acc)
 		frames.Add(int64(len(samples) / int(opts.Channels)))
 	}
 	return func() tea.Msg {
@@ -234,7 +255,8 @@ func (m Model) View() string {
 	if m.initErr != nil {
 		return fmt.Sprintf("rig-meter\n\naudio: %v\n\nq quit\n", m.initErr)
 	}
-	bar := meter.Bar(int16(m.lastPeak), m.lastFrames, 0)
+	peakDb := audio.ToDbFS(int16(m.lastPeak))
+	bar := meter.BarDB(m.lastRms, peakDb, m.lastFrames, 0)
 	deviceName := "system default"
 	if m.inDrop.Current > 0 && m.inDrop.Current-1 < len(m.inputs) {
 		deviceName = m.inputs[m.inDrop.Current-1].Name
@@ -248,7 +270,7 @@ func (m Model) View() string {
 	b += "rig-meter\n\n"
 	b += fmt.Sprintf("input: %s\n", deviceName)
 	b += fmt.Sprintf("channels: %d\n", channels)
-	b += fmt.Sprintf("raw peak: %d\n\n", m.lastPeak)
+	b += fmt.Sprintf("raw peak: %d  RMS: %.1f dBFS\n\n", m.lastPeak, m.lastRms)
 	b += bar + "\n\n"
 	b += m.status + "\n\n"
 	if m.inDrop.Focus {
