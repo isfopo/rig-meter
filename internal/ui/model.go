@@ -33,6 +33,8 @@ type Model struct {
 	frames *atomic.Int64
 	sumSq  *atomic.Int64
 
+	meter *meter.Meter
+
 	lastPeak   int64
 	lastFrames int64
 	lastRms    float64
@@ -59,8 +61,9 @@ type tickMsg time.Time
 var channelCounts = []uint32{2, 1}
 var channelLabels = []string{"2 channels", "1 channel"}
 
-// New returns the meter model.
-func New() Model {
+// New returns the meter model. Optional meter options configure the meter's
+// scale, colors, width, ruler, etc. Defaults are used when none are given.
+func New(opts ...meter.Option) Model {
 	return Model{
 		peak:     &atomic.Int64{},
 		frames:   &atomic.Int64{},
@@ -70,6 +73,7 @@ func New() Model {
 		status:   "starting audio...",
 		inDrop:   dropdown.New([]string{"system default"}, 0),
 		chanDrop: dropdown.New(channelLabels, 0),
+		meter:    meter.New(opts...),
 	}
 }
 
@@ -256,7 +260,11 @@ func (m Model) View() string {
 		return fmt.Sprintf("rig-meter\n\naudio: %v\n\nq quit\n", m.initErr)
 	}
 	peakDb := audio.ToDbFS(int16(m.lastPeak))
-	bar := meter.BarDB(m.lastRms, peakDb, m.lastFrames, 0)
+	mtr := m.meter
+	if mtr == nil {
+		mtr = meter.New()
+	}
+	bar := mtr.Render(m.lastRms, peakDb, m.lastFrames, 0)
 	deviceName := "system default"
 	if m.inDrop.Current > 0 && m.inDrop.Current-1 < len(m.inputs) {
 		deviceName = m.inputs[m.inDrop.Current-1].Name
